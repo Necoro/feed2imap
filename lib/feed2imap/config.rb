@@ -88,7 +88,7 @@ class F2IConfig
   def push_feed(target)
     Proc.new do |f|
       if f.has_key? 'group'
-        ftarget = calc_target(target, f['target'].to_s)
+        ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['group'].to_s)
         f['feeds'].each &(push_feed ftarget)
       elsif f['disable'].nil?
         ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['name'].to_s)
