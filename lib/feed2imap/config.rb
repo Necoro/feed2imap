@@ -34,7 +34,7 @@ LOGNAME = Etc.getlogin
 
 # Feed2imap configuration
 class F2IConfig
-  attr_reader :imap_accounts, :cache, :feeds, :dumpdir, :updateddebug, :max_failures, :include_images, :default_email, :hostname, :reupload_if_updated, :parts, :timeout
+  attr_reader :imap_accounts, :cache, :feeds, :dumpdir, :updateddebug, :max_failures, :include_images, :default_email, :hostname, :reupload_if_updated, :parts, :timeout, :target
 
   # Load the configuration from the IO stream
   # TODO should do some sanity check on the data read.
@@ -45,6 +45,7 @@ class F2IConfig
     @conf['feeds'] ||= []
     @feeds = []
     @max_failures = (@conf['max-failures'] || 10).to_i
+    @target = @conf['target'] || nil
 
     @updateddebug = false
     @updateddebug = @conf['debug-updated'] if @conf.has_key?('debug-updated')
@@ -66,14 +67,35 @@ class F2IConfig
     ImapAccount.no_ssl_verify = (@conf.has_key?('disable-ssl-verification') and @conf['disable-ssl-verification'] == true)
     @hostname = HOSTNAME # FIXME: should this be configurable as well?
     @imap_accounts = ImapAccounts::new
-    maildir_account = MaildirAccount::new
-    @conf['feeds'].each do |f|
-      f['name'] = f['name'].to_s
-      if f['disable'].nil?
-        uri = URI::parse(Array(f['target']).join(''))
+    @maildir_account = MaildirAccount::new
+    
+    @conf['feeds'].each &(push_feed @target.to_s)
+  end
+
+  def calc_target(global, new)
+    if new.empty? 
+      global
+    elsif new =~ /^\w+:\/\//
+      # seems to be a complete URI
+      new
+    else
+      # only a part -- append it to the global one
+      global = global + "." unless global =~ /.\.$/
+      global + ((new.include? "%") ? new : URI::encode(new))
+    end
+  end
+
+  def push_feed(target)
+    Proc.new do |f|
+      if f.has_key? 'group'
+        ftarget = calc_target(target, f['target'].to_s)
+        f['feeds'].each &(push_feed ftarget)
+      elsif f['disable'].nil?
+        ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['name'].to_s)
+        uri = URI::parse(Array(ftarget).join(''))
         path = URI::unescape(uri.path)
         if uri.scheme == 'maildir'
-          @feeds.push(ConfigFeed::new(f, maildir_account, path, self))
+          @feeds.push(ConfigFeed::new(f, @maildir_account, path, self))
         else
           # remove leading slash from IMAP mailbox names
           path = path[1..-1] if path[0,1] == '/'
@@ -164,3 +186,5 @@ class ConfigFeed
     end
   end
 end
+
+# vim: sw=2:sts=2:expandtab
