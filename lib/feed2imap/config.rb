@@ -69,7 +69,7 @@ class F2IConfig
     @imap_accounts = ImapAccounts::new
     @maildir_account = MaildirAccount::new
     
-    @conf['feeds'].each &(push_feed @target.to_s)
+    @conf['feeds'].each { |f| push_feed @target.to_s, f }
   end
 
   def calc_target(global, new)
@@ -85,22 +85,20 @@ class F2IConfig
     end
   end
 
-  def push_feed(target)
-    Proc.new do |f|
-      if f.has_key? 'group'
-        ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['group'].to_s)
-        f['feeds'].each &(push_feed ftarget)
-      elsif f['disable'].nil?
-        ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['name'].to_s)
-        uri = URI::parse(Array(ftarget).join(''))
-        path = URI::unescape(uri.path)
-        if uri.scheme == 'maildir'
-          @feeds.push(ConfigFeed::new(f, @maildir_account, path, self))
-        else
-          # remove leading slash from IMAP mailbox names
-          path = path[1..-1] if path[0,1] == '/'
-          @feeds.push(ConfigFeed::new(f, @imap_accounts.add_account(uri), path, self))
-        end
+  def push_feed(target, f)
+    if f.has_key? 'group'
+      ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['group'].to_s)
+      f['feeds'].each { |f| push_feed ftarget, f}
+    elsif f['disable'].nil?
+      ftarget = calc_target(target, (f.has_key? 'target') ? f['target'].to_s : f['name'].to_s)
+      uri = URI::parse(Array(ftarget).join(''))
+      path = URI::unescape(uri.path)
+      if uri.scheme == 'maildir'
+        @feeds.push(ConfigFeed::new(f, @maildir_account, path, self))
+      else
+        # remove leading slash from IMAP mailbox names
+        path = path[1..-1] if path[0,1] == '/'
+        @feeds.push(ConfigFeed::new(f, @imap_accounts.add_account(uri), path, self))
       end
     end
   end
