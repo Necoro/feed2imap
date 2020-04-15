@@ -91,6 +91,11 @@ class ItemCache
     Marshal.dump([@@cacheidx, @channels], io)
   end
   
+  # Keys of the channels
+  def channels
+    @channels.keys
+  end
+
   # Return the number of channels in the cache
   def nbchannels
     @channels.length

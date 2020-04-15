@@ -45,11 +45,13 @@ if docache
   end
 
   before = cache.nbchannels
+  keys_before = cache.channels
 
   puts "Cleaning up"
   cache.cleanup(config.feeds)
 
   after = cache.nbchannels
+  keys_after = cache.channels
 
   if not dryrun
     puts "Saving cache ..."
@@ -61,11 +63,14 @@ if docache
     begin
       File::rename("#{config.cache}.new", config.cache)
     rescue
-      puts"Exception caught while renaming #{@config.cache}.new to #{@config.cache}: #{$!}"
+      puts "Exception caught while renaming #{@config.cache}.new to #{@config.cache}: #{$!}"
     end
   end
 
   puts "#Channels before: #{before}, after: #{after}"
+  (keys_before - keys_after).each do |c|
+    puts "Removed channel #{c}"
+  end
 else
   config.imap_accounts.each_value do |ac|
     ac.connect
