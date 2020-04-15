@@ -7,6 +7,7 @@ require 'optparse'
 
 configf = ENV['HOME'] + '/.feed2imaprc'
 dryrun = false
+docache = false
 
 opts = OptionParser::new do |opts|
   opts.banner = "Usage: feed2imap-cleaner [options]"
@@ -14,6 +15,9 @@ opts = OptionParser::new do |opts|
   opts.separator "Options:"
   opts.on("-d", "--dry-run", "Dont really remove messages") do |v|
     dryrun = true
+  end
+  opts.on("-c", "--cache", "Clean cache instead of messages") do |v|
+    docache = true
   end
   opts.on("-f", "--config <file>", "Select alternate config file") do |f|
     configf = f
@@ -23,10 +27,51 @@ opts.parse!(ARGV)
 
 config = nil
 File::open(configf) { |f| config = F2IConfig::new(f) }
-config.imap_accounts.each_value do |ac|
-  ac.connect
-end
-config.feeds.each do |f|
-  f.imapaccount.cleanup(f.folder, dryrun)
+if docache
+  puts 'Initializing cache ...'
+  cache = ItemCache::new(true)
+  if not File::exist?(config.cache + '.lock')
+    f = File::new(config.cache + '.lock', 'w')
+    f.close
+  end
+  if File::new(config.cache + '.lock', 'w').flock(File::LOCK_EX | File::LOCK_NB) == false
+    puts "Another instance of feed2imap is already locking the cache file"
+    exit(1)
+  end
+  if File::exist?(config.cache) 
+    File::open(config.cache) do |f|
+      cache.load(f)
+    end
+  end
+
+  before = cache.nbchannels
+
+  puts "Cleaning up"
+  cache.cleanup(config.feeds)
+
+  after = cache.nbchannels
+
+  if not dryrun
+    puts "Saving cache ..."
+    begin
+      File::open("#{config.cache}.new", 'w') { |f| cache.save(f) }
+    rescue
+      puts "Exception caught while writing new cache to #{config.cache}.new: #{$!}"
+    end
+    begin
+      File::rename("#{config.cache}.new", config.cache)
+    rescue
+      puts"Exception caught while renaming #{@config.cache}.new to #{@config.cache}: #{$!}"
+    end
+  end
+
+  puts "#Channels before: #{before}, after: #{after}"
+else
+  config.imap_accounts.each_value do |ac|
+    ac.connect
+  end
+  config.feeds.each do |f|
+    f.imapaccount.cleanup(f.folder, dryrun)
+  end
 end
 

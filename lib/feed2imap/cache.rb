@@ -110,6 +110,17 @@ class ItemCache
     @@cacheidx += 1
     i
   end
+
+  def cleanup(feeds)
+    remaining = {}
+    feeds.each do |f|
+      id = f.name
+      if @channels.key?(id)
+        remaining[id] = @channels[id]
+      end
+    end
+    @channels = remaining
+  end
 end
 
 class CachedChannel
